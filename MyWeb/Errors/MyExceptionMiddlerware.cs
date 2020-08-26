@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using MyWeb.utils;
 using MyWeb.ViewModels;
 
 namespace MyWeb.Errors
@@ -26,10 +27,6 @@ namespace MyWeb.Errors
             {
                 await WriteExceptionAsync(httpContext, ex);
             }
-            finally
-            {
-                await WriteExceptionAsync(httpContext, null);
-            }
         }
 
         private async Task WriteExceptionAsync(HttpContext httpContext, Exception exception)
@@ -51,17 +48,8 @@ namespace MyWeb.Errors
                     };
                 }
                 var stream = httpContext.Response.Body;
-                await JsonSerializer.SerializeAsync(stream, response, JsonSerializerOptions());
+                await JsonSerializer.SerializeAsync(stream, response, JsonUtils.DefaultOptions());
             }
-        }
-
-        private JsonSerializerOptions JsonSerializerOptions()
-        {
-            return new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                PropertyNameCaseInsensitive = true
-            };
         }
 
     }

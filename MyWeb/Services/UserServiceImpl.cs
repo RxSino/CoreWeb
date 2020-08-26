@@ -16,7 +16,7 @@ namespace MyWeb.Services
 
         public async Task<UserDO> login(string username, string password)
         {
-            return await UserRepository.login(username, password);
+            return await UserRepository.Login(username, password);
         }
     }
 }

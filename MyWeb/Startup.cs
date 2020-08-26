@@ -50,16 +50,17 @@ namespace MyWeb
 
             services.AddSwaggerGen();
 
-            services.AddMvc(options =>
-            {
-                options.Filters.Add<MyExceptionFilter>();
+            //services.AddMvc(options =>
+            //{
+            //    //异常过滤器
+            //    //options.Filters.Add<MyExceptionFilter>();
 
-                //模型验证的第二种方案
-                //options.Filters.Add(typeof(MyValidationFilter));
+            //    //模型验证的第二种方案
+            //    //options.Filters.Add(typeof(MyValidationFilter));
 
-                //需要使用默认的模型验证
-                //options.MaxModelValidationErrors = 1;
-            });
+            //    //需要使用默认的模型验证
+            //    //options.MaxModelValidationErrors = 1;
+            //});
 
             //JSON
             //services.AddMvc().AddJsonOptions(options =>
@@ -71,8 +72,13 @@ namespace MyWeb
             //FluentValidation
             services.AddMvc().AddFluentValidation(cfg =>
             {
+                //When a rule fails, validation is immediately halted.
                 cfg.ValidatorOptions.CascadeMode = FluentValidation.CascadeMode.Stop;
+
+                //True by default.
                 cfg.RunDefaultMvcValidationAfterFluentValidationExecutes = false;
+
+                //Register
                 cfg.RegisterValidatorsFromAssemblyContaining(typeof(LoginValidator));
             });
 
@@ -108,7 +114,7 @@ namespace MyWeb
                 .AddJwtBearer(options =>
                 {
                     options.TokenValidationParameters = TokenValidationParameters();
-                    options.Events = JwtBearerEvents();
+                    options.Events = new MyJwtBearerEvents();
                 });
 
 
@@ -146,12 +152,13 @@ namespace MyWeb
             //中间件,返回200
             //app.UseMiddleware<MyExceptionMiddleware>();
 
-            //异常处理器，默认返回500
-            //app.UseExceptionHandler(appbuilder =>
-            //{
-            //    appbuilder.Use(MyExceptionHandler);
-            //});
+            //Either the 'ExceptionHandlingPath' or the 'ExceptionHandler' option must be set in 'UseExceptionHandler()'.
+            //app.UseExceptionHandler();
 
+            //Exception
+            app.MyExceptionHandler();
+
+            //
             IdentityModelEventSource.ShowPII = true;
 
             app.UseAuthentication();
@@ -172,42 +179,9 @@ namespace MyWeb
             {
                 endpoints.MapControllers();
             });
+
         }
 
-        public async Task MyExceptionHandler(HttpContext httpContext, Func<Task> next)
-        {
-            httpContext.Response.StatusCode = StatusCodes.Status200OK;
-            httpContext.Response.ContentType = "application/json";
-
-            var response = Responses.Error();
-            var exceptionDetails = httpContext.Features.Get<IExceptionHandlerFeature>();
-            var exception = exceptionDetails?.Error;
-
-            if (exception != null)
-            {
-                if (exception is MyException ex)
-                {
-                    response = new RawResponse
-                    {
-                        Code = ex.Code,
-                        Message = ex.Value,
-                        Data = ex.ToString()
-                    };
-                }
-
-                var stream = httpContext.Response.Body;
-                await JsonSerializer.SerializeAsync(stream, response, JsonSerializerOptions());
-            }
-        }
-
-        private JsonSerializerOptions JsonSerializerOptions()
-        {
-            return new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                PropertyNameCaseInsensitive = true
-            };
-        }
 
         private TokenValidationParameters TokenValidationParameters()
         {
@@ -224,20 +198,18 @@ namespace MyWeb
             };
         }
 
-        private JwtBearerEvents JwtBearerEvents()
+    }
+
+    public class MyJwtBearerEvents : JwtBearerEvents
+    {
+        public override Task Challenge(JwtBearerChallengeContext context)
         {
-            return new JwtBearerEvents
-            {
-                OnChallenge = context =>
-                {
-                    context.Response.StatusCode = StatusCodes.Status200OK;
-                    context.Response.ContentType = "application/json";
-                    var response = Responses.TokenError();
-                    var stream = context.Response.Body;
-                    JsonSerializer.SerializeAsync(stream, response, JsonSerializerOptions());
-                    return Task.CompletedTask;
-                }
-            };
+            context.Response.StatusCode = StatusCodes.Status200OK;
+            context.Response.ContentType = "application/json";
+            var response = Responses.TokenError();
+            var text = JsonSerializer.Serialize(response, JsonUtils.DefaultOptions());
+            context.Response.WriteAsync(text);
+            return base.Challenge(context);
         }
     }
 }
